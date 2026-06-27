@@ -11,11 +11,13 @@ import { parsePriceRows, fmtPrice, type Product } from '@/lib/priceData';
 import { DEMO_PRODUCTS } from '@/lib/demoProducts';
 
 const ALL = 'Все категории';
+const ALL_WH = 'Все склады';
 
 const Index = () => {
   const [products, setProducts] = useState<Product[]>(DEMO_PRODUCTS);
   const [isDemo, setIsDemo] = useState(true);
   const [activeCat, setActiveCat] = useState(ALL);
+  const [activeWh, setActiveWh] = useState(ALL_WH);
   const [brands, setBrands] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [inStock, setInStock] = useState(false);
@@ -27,6 +29,11 @@ const Index = () => {
   );
   const [priceCap, setPriceCap] = useState<number | null>(null);
   const cap = priceCap ?? maxPrice;
+
+  const warehouses = useMemo(() => {
+    const set = new Set(products.map((p) => p.warehouse).filter(Boolean));
+    return set.size > 1 ? [ALL_WH, ...Array.from(set)] : [];
+  }, [products]);
 
   const categories = useMemo(() => {
     const set = new Set(products.map((p) => p.category));
@@ -43,6 +50,7 @@ const Index = () => {
       products.filter(
         (p) =>
           (activeCat === ALL || p.category === activeCat) &&
+          (activeWh === ALL_WH || p.warehouse === activeWh) &&
           (brands.length === 0 || brands.includes(p.brand)) &&
           p.price <= cap &&
           (!inStock || p.stock > 0) &&
@@ -51,7 +59,7 @@ const Index = () => {
             p.size.toLowerCase().includes(search.toLowerCase()) ||
             p.article.toLowerCase().includes(search.toLowerCase())),
       ),
-    [products, activeCat, brands, cap, inStock, search],
+    [products, activeCat, activeWh, brands, cap, inStock, search],
   );
 
   const toggleBrand = (b: string) =>
@@ -59,6 +67,7 @@ const Index = () => {
 
   const resetAll = () => {
     setActiveCat(ALL);
+    setActiveWh(ALL_WH);
     setBrands([]);
     setPriceCap(null);
     setInStock(false);
@@ -180,6 +189,29 @@ const Index = () => {
               />
             </div>
 
+            {warehouses.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Icon name="Warehouse" size={16} className="text-lime" /> Склад
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {warehouses.map((w) => (
+                    <button
+                      key={w}
+                      onClick={() => setActiveWh(w)}
+                      className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                        activeWh === w
+                          ? 'bg-lime text-background'
+                          : 'bg-secondary text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <p className="text-sm font-semibold flex items-center gap-2">
                 <Icon name="Wallet" size={16} className="text-lime" /> Цена до {fmtPrice(cap)}
@@ -253,15 +285,23 @@ const Index = () => {
                     className="group animate-fade-up flex flex-col rounded-3xl border border-border bg-card p-5 hover:border-lime/50 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3 mb-3">
-                      <Badge variant="outline" className="border-border text-muted-foreground rounded-full text-xs">
-                        {p.brand}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className="border-border text-muted-foreground rounded-full text-xs">
+                          {p.brand}
+                        </Badge>
+                        {p.warehouse && warehouses.length > 1 && (
+                          <Badge className="bg-violet/15 text-violet border-0 rounded-full text-xs">
+                            <Icon name="Warehouse" size={10} />
+                            {p.warehouse === 'Ответхранение Алабино' ? 'Ответхр.' : p.warehouse}
+                          </Badge>
+                        )}
+                      </div>
                       {p.stock > 0 ? (
-                        <span className="text-xs text-lime flex items-center gap-1">
+                        <span className="text-xs text-lime flex items-center gap-1 shrink-0">
                           <Icon name="Check" size={12} /> {p.stock} шт
                         </span>
                       ) : (
-                        <span className="text-xs text-muted-foreground">под заказ</span>
+                        <span className="text-xs text-muted-foreground shrink-0">под заказ</span>
                       )}
                     </div>
                     {p.size && (

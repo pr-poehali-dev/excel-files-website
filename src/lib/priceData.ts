@@ -7,6 +7,7 @@ export type Product = {
   price: number;
   stock: number;
   article: string;
+  warehouse: string;
 };
 
 const BRANDS = [
@@ -35,10 +36,18 @@ function detectSize(name: string): string {
 // Парсит "сырые" строки прайса в товары.
 // Строка-категория: есть текст группы, но нет цены.
 // Строка-товар: есть название (с "шт.") и цена.
-export function parsePriceRows(rows: string[][]): Product[] {
+export function parsePriceRows(rows: string[][], warehouse = 'Основной'): Product[] {
   const products: Product[] = [];
   let currentCategory = 'Без категории';
   let counter = 0;
+
+  // Определяем склад из шапки файла
+  let detectedWarehouse = warehouse;
+  for (const row of rows.slice(0, 5)) {
+    const joined = row.map((c) => (c ?? '').toString()).join(' ');
+    if (/ответхранение/i.test(joined)) { detectedWarehouse = 'Ответхранение Алабино'; break; }
+    if (/алабино/i.test(joined)) { detectedWarehouse = 'Алабино'; break; }
+  }
 
   for (const row of rows) {
     const cells = row.map((c) => (c ?? '').toString().trim());
@@ -78,6 +87,7 @@ export function parsePriceRows(rows: string[][]): Product[] {
         price,
         stock,
         article,
+        warehouse: detectedWarehouse,
       });
     } else if (!price && joined.length > 4 && !/^\d/.test(joined) && !/прайс-лист/i.test(joined)) {
       // Похоже на заголовок категории (нет цены, начинается с буквы)
