@@ -12,12 +12,67 @@ import { DEMO_PRODUCTS } from '@/lib/demoProducts';
 
 const ALL = 'Все категории';
 const ALL_WH = 'Все склады';
+const ALL_SZ = 'Все размеры';
+
+const ProductCard = ({
+  p,
+  i,
+  showWarehouse,
+  onAdd,
+}: {
+  p: Product;
+  i: number;
+  showWarehouse: boolean;
+  onAdd: () => void;
+}) => (
+  <article
+    style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
+    className="group animate-fade-up flex flex-col rounded-3xl border border-border bg-card p-5 hover:border-lime/50 transition-colors"
+  >
+    <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant="outline" className="border-border text-muted-foreground rounded-full text-xs">
+          {p.brand}
+        </Badge>
+        {p.warehouse && showWarehouse && (
+          <Badge className="bg-violet/15 text-violet border-0 rounded-full text-xs">
+            <Icon name="Warehouse" size={10} />
+            {p.warehouse === 'Ответхранение Алабино' ? 'Ответхр.' : p.warehouse}
+          </Badge>
+        )}
+      </div>
+      {p.stock > 0 ? (
+        <span className="text-xs text-lime flex items-center gap-1 shrink-0">
+          <Icon name="Check" size={12} /> {p.stock} шт
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground shrink-0">под заказ</span>
+      )}
+    </div>
+    {p.size && (
+      <p className="font-display font-bold text-lg text-lime mb-1">{p.size}</p>
+    )}
+    <h4 className="text-sm text-foreground/90 leading-snug mb-4 flex-1">{p.name}</h4>
+    <div className="flex items-center justify-between mt-auto pt-3 border-t border-border">
+      <span className="font-display font-bold text-lg">{fmtPrice(p.price)}</span>
+      <Button
+        size="sm"
+        onClick={onAdd}
+        className="bg-secondary text-foreground hover:bg-lime hover:text-background rounded-full transition-colors"
+      >
+        <Icon name="Plus" size={16} /> В заявку
+      </Button>
+    </div>
+  </article>
+);
 
 const Index = () => {
   const [products, setProducts] = useState<Product[]>(DEMO_PRODUCTS);
   const [isDemo, setIsDemo] = useState(true);
   const [activeCat, setActiveCat] = useState(ALL);
   const [activeWh, setActiveWh] = useState(ALL_WH);
+  const [activeSize, setActiveSize] = useState(ALL_SZ);
+  const [groupBySize, setGroupBySize] = useState(false);
   const [brands, setBrands] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [inStock, setInStock] = useState(false);
@@ -45,12 +100,18 @@ const Index = () => {
     return Array.from(set).sort();
   }, [products]);
 
+  const sizeList = useMemo(() => {
+    const set = new Set(products.map((p) => p.size).filter(Boolean));
+    return Array.from(set).sort();
+  }, [products]);
+
   const filtered = useMemo(
     () =>
       products.filter(
         (p) =>
           (activeCat === ALL || p.category === activeCat) &&
           (activeWh === ALL_WH || p.warehouse === activeWh) &&
+          (activeSize === ALL_SZ || p.size === activeSize) &&
           (brands.length === 0 || brands.includes(p.brand)) &&
           p.price <= cap &&
           (!inStock || p.stock > 0) &&
@@ -59,8 +120,20 @@ const Index = () => {
             p.size.toLowerCase().includes(search.toLowerCase()) ||
             p.article.toLowerCase().includes(search.toLowerCase())),
       ),
-    [products, activeCat, activeWh, brands, cap, inStock, search],
+    [products, activeCat, activeWh, activeSize, brands, cap, inStock, search],
   );
+
+  // Группировка по размеру: { size -> Product[] }
+  const groupedBySize = useMemo(() => {
+    if (!groupBySize) return null;
+    const map = new Map<string, Product[]>();
+    for (const p of filtered) {
+      const key = p.size || '—';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filtered, groupBySize]);
 
   const toggleBrand = (b: string) =>
     setBrands((prev) => (prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]));
@@ -68,6 +141,7 @@ const Index = () => {
   const resetAll = () => {
     setActiveCat(ALL);
     setActiveWh(ALL_WH);
+    setActiveSize(ALL_SZ);
     setBrands([]);
     setPriceCap(null);
     setInStock(false);
@@ -234,9 +308,40 @@ const Index = () => {
 
             <div className="space-y-3">
               <p className="text-sm font-semibold flex items-center gap-2">
+                <Icon name="Ruler" size={16} className="text-lime" /> Размер
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto no-scrollbar">
+                <button
+                  onClick={() => setActiveSize(ALL_SZ)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                    activeSize === ALL_SZ
+                      ? 'bg-lime text-background'
+                      : 'bg-secondary text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Все
+                </button>
+                {sizeList.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setActiveSize(s)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                      activeSize === s
+                        ? 'bg-lime text-background'
+                        : 'bg-secondary text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold flex items-center gap-2">
                 <Icon name="Tag" size={16} className="text-violet" /> Бренд
               </p>
-              <div className="space-y-3 max-h-64 overflow-y-auto no-scrollbar pr-1">
+              <div className="space-y-3 max-h-48 overflow-y-auto no-scrollbar pr-1">
                 {brandList.map((b) => (
                   <label key={b} className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
                     <Checkbox checked={brands.includes(b)} onCheckedChange={() => toggleBrand(b)} />
@@ -265,10 +370,21 @@ const Index = () => {
               ))}
             </div>
 
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <p className="text-sm text-muted-foreground">
                 Найдено <span className="text-foreground font-semibold">{filtered.length}</span> позиций
               </p>
+              <button
+                onClick={() => setGroupBySize((v) => !v)}
+                className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium border transition-all ${
+                  groupBySize
+                    ? 'bg-lime text-background border-lime'
+                    : 'bg-transparent text-muted-foreground border-border hover:text-foreground'
+                }`}
+              >
+                <Icon name="Layers" size={14} />
+                {groupBySize ? 'Группировка по размеру' : 'Группировать по размеру'}
+              </button>
             </div>
 
             {filtered.length === 0 ? (
@@ -276,49 +392,33 @@ const Index = () => {
                 <Icon name="SearchX" size={48} className="mx-auto mb-4 text-violet" />
                 Ничего не найдено. Смягчите фильтры.
               </div>
+            ) : groupedBySize ? (
+              <div className="space-y-10">
+                {groupedBySize.map(([size, items]) => (
+                  <div key={size}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="font-display font-bold text-xl text-lime">{size}</span>
+                      <span className="text-xs text-muted-foreground bg-secondary rounded-full px-3 py-1">{items.length} позиций</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {items.map((p, i) => (
+                        <ProductCard key={p.id} p={p} i={i} showWarehouse={warehouses.length > 1} onAdd={() => toast.success(`«${p.size || p.name}» добавлен в заявку`)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtered.map((p, i) => (
-                  <article
+                  <ProductCard
                     key={p.id}
-                    style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
-                    className="group animate-fade-up flex flex-col rounded-3xl border border-border bg-card p-5 hover:border-lime/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        <Badge variant="outline" className="border-border text-muted-foreground rounded-full text-xs">
-                          {p.brand}
-                        </Badge>
-                        {p.warehouse && warehouses.length > 1 && (
-                          <Badge className="bg-violet/15 text-violet border-0 rounded-full text-xs">
-                            <Icon name="Warehouse" size={10} />
-                            {p.warehouse === 'Ответхранение Алабино' ? 'Ответхр.' : p.warehouse}
-                          </Badge>
-                        )}
-                      </div>
-                      {p.stock > 0 ? (
-                        <span className="text-xs text-lime flex items-center gap-1 shrink-0">
-                          <Icon name="Check" size={12} /> {p.stock} шт
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground shrink-0">под заказ</span>
-                      )}
-                    </div>
-                    {p.size && (
-                      <p className="font-display font-bold text-lg text-lime mb-1">{p.size}</p>
-                    )}
-                    <h4 className="text-sm text-foreground/90 leading-snug mb-4 flex-1">{p.name}</h4>
-                    <div className="flex items-center justify-between mt-auto pt-3 border-t border-border">
-                      <span className="font-display font-bold text-lg">{fmtPrice(p.price)}</span>
-                      <Button
-                        size="sm"
-                        onClick={() => toast.success(`«${p.size || p.name}» добавлен в заявку`)}
-                        className="bg-secondary text-foreground hover:bg-lime hover:text-background rounded-full transition-colors"
-                      >
-                        <Icon name="Plus" size={16} /> В заявку
-                      </Button>
-                    </div>
-                  </article>
+                    p={p}
+                    i={i}
+                    showWarehouse={warehouses.length > 1}
+                    onAdd={() => toast.success(`«${p.size || p.name}» добавлен в заявку`)}
+                  />
                 ))}
               </div>
             )}
